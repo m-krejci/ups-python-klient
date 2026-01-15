@@ -331,6 +331,38 @@ class ClientGUI:
                             self.waiting_for_login_response = False
                             self.login_error = message
 
+                        elif type_msg == Message_types.STAT.value:
+                            self.game_state = GameState.IN_GAME
+                            zprava = message.split("|")
+                            karty = zprava[0]
+                            self.cards_list = []
+                            start, end = 0, 2
+
+                            for i in range(len(karty) // 2):
+                                self.cards_list.append(karty[start:end])
+                                start += 2
+                                end += 2
+                            
+                            self.discard = zprava[1]
+
+                            sekvence = zprava[2]
+                            self.sequence_list = sekvence.split(",")
+
+                            if len(sekvence) >= 1:
+                                self.seq_existing = True
+                            else:
+                                self.seq_existing = False
+
+                            poradi = zprava[3]
+                            if poradi == "TURN":
+                                self.game_on_turn = True
+                            else:
+                                self.game_on_turn = False
+
+                            self.enemy_hand_count = int(zprava[4])
+                            self.new_cards = True
+
+                        
                     elif self.game_state == GameState.CONNECTED:
                         if type_msg == Message_types.RLIS.value:
                             self.rooms_list.clear()

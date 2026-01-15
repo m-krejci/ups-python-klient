@@ -52,9 +52,9 @@ class Network(threading.Thread):
 
                 if type_msg == Message_types.PING.value:
                     self.last_contact = time.time()
-                    # packet = build_message(Message_types.PONG.value, "")
-                    # print(f"Odesílám zprávu: {packet}")
-                    # self.sock.sendall(packet)
+                    packet = build_message(Message_types.PONG.value, "")
+                    print(f"Odesílám zprávu: {packet}")
+                    self.sock.sendall(packet)
                     continue
 
                 if type_msg == Message_types.RECO.value:
