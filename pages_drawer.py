@@ -1,7 +1,7 @@
 import pygame
 from constants import *
 from ui_elements import *
-from clientgui import ClientGUI
+# from clientgui import ClientGUI
 from card import Card
 
 class PageDrawer:
@@ -21,7 +21,7 @@ class PageDrawer:
 
         self.ui.draw_error(rect, error)
 
-    def draw_connect_screen(self, state: "ClientGUI"):
+    def draw_connect_screen(self, state):
         self.screen.fill((168, 255, 255))
         mouse_pos = pygame.mouse.get_pos()
 
@@ -66,9 +66,15 @@ class PageDrawer:
         # Čekání na server
         if state.waiting_for_login_response:
             wait_text = self.font.render("Čekám na server...", True, (120, 120, 120))
-            self.screen.blit(wait_text, (WINDOW_WIDTH // 2 - wait_text.get_width() // 2, state.login_name_input.bottom + 50))
+            self.screen.blit(wait_text, (WINDOW_WIDTH // 2 - wait_text.get_width() // 2, state.login_name_input.bottom + 200))
 
-    def draw_create_room_popup(self, state: "ClientGUI"):
+        if state.connect_error:
+            text = state.font_small.render(state.connect_error, True, (255, 0, 0))
+            text_rect = text.get_rect()
+            text_rect.center = (WINDOW_WIDTH // 2, state.login_name_input.bottom + 240)
+            self.screen.blit(text, text_rect)
+
+    def draw_create_room_popup(self, state):
         # Ztmavení pozadí
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_WIDTH), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 120))
@@ -92,7 +98,7 @@ class PageDrawer:
         hint = self.font.render("ENTER = potvrdit | ESC = zrušit", True, (120, 120, 120))
         self.screen.blit(hint, (state.popup_rect.x + 60, state.popup_rect.y + 160))
 
-    def draw_lobby_screen(self, state: "ClientGUI"):
+    def draw_lobby_screen(self, state):
         # Vykreslení trojuhleniku
         pygame.draw.polygon(self.screen, MILKY, [(0, 0), (WINDOW_WIDTH //2, WINDOW_HEIGHT//2), (WINDOW_WIDTH, 0)])
         pygame.draw.polygon(self.screen, BROWN, [(0, 0), (WINDOW_WIDTH //2, WINDOW_HEIGHT//2), (0, WINDOW_HEIGHT)])
@@ -159,7 +165,7 @@ class PageDrawer:
 
         state.game_console.draw(self.screen)
 
-    def draw_room_screen(self, state: "ClientGUI"):
+    def draw_room_screen(self, state):
         mouse_pos = pygame.mouse.get_pos()
         self.screen.fill(BROOM)
 
@@ -209,21 +215,23 @@ class PageDrawer:
 
         state.game_console.draw(self.screen)
 
-    def layout_cards(self, state: "ClientGUI"):
+    def layout_cards(self, state):
         num_cards = len(state.card_objects)
+        try:
+            max_width = WINDOW_WIDTH
+            card_width = state.card_objects[0].rect.width
+            spacing = min((max_width // num_cards), card_width + 20)
 
-        max_width = WINDOW_WIDTH
-        card_width = state.card_objects[0].rect.width
-        spacing = min((max_width // num_cards), card_width + 20)
+            y = WINDOW_HEIGHT - state.card_objects[0].rect.height - WINDOW_HEIGHT // 6
+            
+            start_x = 3
+            for i, card in enumerate(state.card_objects):
+                x = start_x + spacing * i
+                card.rect.topleft = (x, y)
+        except:
+            print("HAHA LAYOUT")
 
-        y = WINDOW_HEIGHT - state.card_objects[0].rect.height - WINDOW_HEIGHT // 6
-        
-        start_x = 3
-        for i, card in enumerate(state.card_objects):
-            x = start_x + spacing * i
-            card.rect.topleft = (x, y)
-
-    def draw_sequence(self, state: "ClientGUI"):
+    def draw_sequence(self, state):
         state.sequence_rects = []
 
         if not state.sequence_list:
@@ -289,7 +297,7 @@ class PageDrawer:
             num_text = state.font_small.render(f"{seq_index + 1}.", True, (0, 255, 255))
             self.screen.blit(num_text, (current_x - 30, current_y + 35))
 
-    def sort_cards(self, state: "ClientGUI"):
+    def sort_cards(self, state):
         values={ 
             "S": 10, "C": 1011, "H": 101, "D": 10111, "X": 10, "Q": 12, "J": 11, "K": 13, "A": 1, "Y": 100000 
         }
@@ -325,7 +333,7 @@ class PageDrawer:
                         state.cards_list[j] = temp
         state.new_cards = True 
 
-    def draw_game_screen(self, state: "ClientGUI"):
+    def draw_game_screen(self, state):
         mouse_pos = pygame.mouse.get_pos()
         self.screen.fill(BROWN)
 
@@ -344,14 +352,17 @@ class PageDrawer:
             self.layout_cards(state)
         state.new_cards = False
 
-        if not state.game_enemy_hand_count:
-            state.game_enemy_hand_count = 14
+        text = f"Protiháč: {state.enemy_name if state.enemy_name else "Unknown"}, počet karet: {state.enemy_hand_count}"
+        text = state.font_small.render(text, True, (255, 255, 255))
+        self.screen.blit(text, (5, 5))
+        if not state.enemy_hand_count:
+            state.enemy_hand_count = 14
 
-        start_x, start_y = 20, 20
+        start_x, start_y = 20, 40
         x_offset, y_offset = 25, 0
         card_back = state.cards.get("BS", None)
 
-        for i in range(state.game_enemy_hand_count):
+        for i in range(state.enemy_hand_count):
             x, y = start_x + i * x_offset, start_y + i * y_offset
             self.screen.blit(card_back, (x, y))
 
@@ -382,7 +393,6 @@ class PageDrawer:
         for card in state.card_objects:
             card.draw(self.screen)
 
-
     def prepare_rows(self, data):
         rows = []
 
@@ -391,7 +401,7 @@ class PageDrawer:
 
         return rows
     
-    def draw_game_done_screen(self, state: "ClientGUI"):
+    def draw_game_done_screen(self, state):
         self.screen.fill(LIGHT_BROWN)
         mouse_pos = pygame.mouse.get_pos()
 
@@ -440,3 +450,17 @@ class PageDrawer:
             title = state.bold_font.render("GAME RESULTS", True, (255, 215, 0))
             title_rect = title.get_rect(center=(self.screen.get_width() // 2, start_y - 40))
             self.screen.blit(title, title_rect)
+
+    def draw_player_disconnected(self, state):
+        self.screen.fill((255, 255, 255))
+
+        
+        text = state.bold_font.render(state.user_disconnected, True, (0, 0, 0))
+        text_rect = text.get_rect()
+        text_rect.center = (WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2)
+        self.screen.blit(text, text_rect)
+
+        text = state.font_small.render("Má dvě minuty na připojení", True, (0, 0, 0))
+        text_rect = text.get_rect()
+        text_rect.center = (WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 50)
+        self.screen.blit(text, text_rect)

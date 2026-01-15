@@ -54,3 +54,6 @@ GREEN = (0, 153, 0)
 BUTTON_COLOR = (70, 130, 180)   # Modrá sytá
 BUTTON_HOVER = (100, 150, 240)  # Modrá světlá
 
+# PONG
+PONG_INTERVAL = 15
+

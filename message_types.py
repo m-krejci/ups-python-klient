@@ -36,3 +36,8 @@ class Message_types(Enum):
     ADDC: str = "ADDC"
     PONG: str = "PONG"
     PING: str = "PING"
+    QUIT: str = "QUIT"
+    PAUS: str = "PAUS"
+    RESU: str = "RESU"
+    GAME: str = "GAME"
+    RECO: str = "RECO"

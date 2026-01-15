@@ -14,3 +14,4 @@ class GameState(Enum):
     PAUSEDd = 6
     GAME_DONE = 7
     IN_GAME = 8
+    PAUSED = 9

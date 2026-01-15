@@ -47,7 +47,7 @@ class Console:
             y += self.font.get_height()
     
     def delete(self):
-        """Odstranění zpráv v struktuře
+        """Odstranění zpráv ve struktuře
         """
         self.lines = deque(maxlen=self.max_lines)
         

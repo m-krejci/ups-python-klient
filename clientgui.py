@@ -49,6 +49,7 @@ class ClientGUI:
         # Pomocné proměnné:
         self.waiting_for_login_response = False
         self.login_error = ""
+        self.connect_error = ""
 
         # STAV : CONNECTED
         # Pomocné proměnné
@@ -71,20 +72,21 @@ class ClientGUI:
         self.discard = ""
         self.sequence_list = []
         self.seq_existing = False
-        self.enemy_hand_count = ""
+        self.enemy_hand_count = 0
         self.results = dict()
         self.user_seradit = False
         self.prilozit_active = False
         self.sequences_area_rect = None
         self.sequence_rects = []
         self.game_enemy_hand_count = ""
+        self.enemy_name = ""
 
         # GAMESCREEN : CONNECT
         self.login_text = "mates"
         self.login_error = ""
-        self.server_text = "1.1.1.1"
+        self.server_text = "192.168.208.195"
         self.server_error = ""
-        self.port_text = "0"
+        self.port_text = "10000"
         self.port_error = ""
 
         # GAMESCREEN : LOBBY
@@ -95,7 +97,7 @@ class ClientGUI:
 
         # GAMESCREEN : GAMEDONE
         self.clicked_plag = True
-
+        self.user_disconnected = ""
 
         # Buttons
         self.connect_button = pygame.Rect(WINDOW_WIDTH // 2 - (250 // 2), WINDOW_HEIGHT // 2 + 200, 250, 40)    # login screen
@@ -175,16 +177,30 @@ class ClientGUI:
         except:
             print(f"Nebylo možné načíst kartu [YY.png]")
     
-    def connect_to_server(self):
+    def _threaded_connect_process(self):
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.connect(("127.0.0.1", 10000))
+            self.sock.settimeout(5.0) 
+            
+            print(f"Pokus o připojení k: {self.server_text}:{self.port_text}")
+            self.sock.connect((self.server_text, int(self.port_text)))
+            
+            self.sock.settimeout(None)
             self.connected = True
+            
             self.network_thread = Network(self.sock, self.message_queue)
             self.network_thread.start()
+            self.send_message(Message_types.LOGI.value, self.login_text)
+            
         except Exception as e:
-            print("Chyba připojení")
-            print(e)
+            # Zachycení timeoutu nebo odmítnutí spojení
+            print(f"Chyba při navazování spojení: {e}")
+            self.connected = False
+            self.waiting_for_login_response = False
+            self.connect_error = f"Chyba připojení: {e}"
+        # except Exception as e:
+        #     self.connect_error = f"Chyba připojení: {e}"
+            
 
     def send_message(self, type_msg: str, msg: str):
         if not self.connected:
@@ -238,10 +254,66 @@ class ClientGUI:
 
         self.new_cards = True
 
+    def start_reconnect_thread(self):
+        if getattr(self, "_reconnecting", False):
+            return
+        
+        self._reconnecting = True
+        t = threading.Thread(target=self._threaded_reconnect_process, daemon=True)
+        t.start()
+
+    def _threaded_reconnect_process(self):
+        attempts = 0
+        max_attempts = 10
+
+        while attempts < max_attempts and self.running:
+            attempts += 1
+            print(f"Reconnect pokus {attempts}/{max_attempts}...")
+            try:
+                # 1. Nový socket
+                new_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                new_sock.settimeout(3.0)
+                new_sock.connect((self.server_text, int(self.port_text)))
+                
+                # 2. Úspěšné navázání TCP spojení
+                new_sock.settimeout(None)
+                self.sock = new_sock
+                self.connected = True
+                self._reconnecting = False
+                
+                # 3. Start nového síťového vlákna
+                self.network_thread = Network(self.sock, self.message_queue)
+                self.network_thread.start()
+                
+                # 4. Odeslání LOGI - server podle nicku provede reconnect na původní slot
+                self.send_message(Message_types.LOGI.value, self.login_text)
+                self.game_console.log("Reconnect úspěšný", False)
+                print("Reconnect úspěšný, odeslán LOGI.")
+                return 
+
+            except Exception as e:
+                print(f"Pokus {attempts} selhal: {e}")
+                time.sleep(3)
+
+        # Pokud se reconnect nepodaří do timeoutu
+        self._reconnecting = False
+        self.game_state = GameState.DISCONNECTED
+        self.connect_error = "Nepodařilo se obnovit spojení se serverem."
+
     def process_queue(self):
         while True:
             try:
                 item = self.message_queue.get_nowait()
+                if self.game_state:
+                    print(self.game_state.value)
+                if item[0] == "reconnect":
+                    self.game_console.log("Spojení obnoveno", False)
+
+                if item[0] == "network_lost":
+                    if self.game_state != GameState.DISCONNECTED:
+                        self.game_console.log("Spojení ztraceno, pokouším se o reconnect", True)
+                        self.connected = False
+                        self.start_reconnect_thread()
 
                 if item[0] == "message":
                     _, type_msg, message = item
@@ -249,6 +321,10 @@ class ClientGUI:
                     if self.game_state == GameState.DISCONNECTED:
                         if type_msg == Message_types.OKAY.value:
                             self.waiting_for_login_response = False
+                            self.game_state = GameState.CONNECTED
+                        
+                        elif type_msg == Message_types.RECO.value:
+                            self.connected = True
                             self.game_state = GameState.CONNECTED
 
                         elif type_msg == Message_types.ERRR.value:
@@ -279,6 +355,38 @@ class ClientGUI:
                                     "capacity": room_capacity,
                                     "status": room_status
                                 })
+
+                        elif type_msg == Message_types.STAT.value:
+                            zprava = message.split("|")
+                            karty = zprava[0]
+                            self.cards_list = []
+                            start, end = 0, 2
+
+                            for i in range(len(karty) // 2):
+                                self.cards_list.append(karty[start:end])
+                                start += 2
+                                end += 2
+                            
+                            self.discard = zprava[1]
+
+                            sekvence = zprava[2]
+                            self.sequence_list = sekvence.split(",")
+
+                            if len(sekvence) >= 1:
+                                self.seq_existing = True
+                            else:
+                                self.seq_existing = False
+
+                            poradi = zprava[3]
+
+                            self.enemy_hand_count = int(zprava[4])
+                            
+                            self.new_cards = True
+                            self.game_state = GameState.IN_GAME
+                            self.room_owner = False
+                            self.room_players_info.clear()
+                            self.sequence_list = []
+                            self.discard = ""
                         
                         elif type_msg == Message_types.ELIS.value:
                             self.rooms_list = []
@@ -288,6 +396,7 @@ class ClientGUI:
                             try:
                                 self.current_room = int(message)
                                 self.game_state = GameState.IN_ROOM
+                                self.game_console.delete()
                             except Exception as e:
                                 self.game_console.log(f"Ze serveru přišlo nevalidní číslo místnosti", True)
 
@@ -301,6 +410,10 @@ class ClientGUI:
                                         break
                             except Exception as e:
                                 print("Neexistující místnost.")
+                        
+                        elif type_msg == Message_types.QUIT.value:
+                            self.connected = False
+                            self.game_state = GameState.DISCONNECTED
                     
                     elif self.game_state == GameState.IN_ROOM:
                         if type_msg == Message_types.BOSS.value:
@@ -327,6 +440,11 @@ class ClientGUI:
                             self.game_state = GameState.IN_GAME
                             self.game_console.delete()
 
+                            self.room_owner = False
+                            self.room_players_info.clear()
+                            self.sequence_list = []
+                            self.discard = ""
+
                         elif type_msg == Message_types.RINF.value:
                             self.room_players_info = []
                             for p in message.split(","):
@@ -339,6 +457,8 @@ class ClientGUI:
                                     continue
 
                                 nick, status, vlastnictvi = parts
+                                if nick != self.login_text:
+                                    self.enemy_name = nick
                                 self.room_players_info.append({
                                     "nick": nick,
                                     "status": status,
@@ -432,6 +552,11 @@ class ClientGUI:
 
                             self.game_state = GameState.GAME_DONE
 
+                        elif type_msg == Message_types.PAUS.value:
+                            self.game_state = GameState.PAUSED
+                            self.user_disconnected = message
+                            
+
                     elif self.game_state == GameState.GAME_DONE:
                         if type_msg == Message_types.LBBY.value:
                             self.game_state = GameState.CONNECTED
@@ -444,6 +569,17 @@ class ClientGUI:
                             self.discard = False
                             self.game_console.delete()
                             self.game_state = GameState.IN_GAME
+
+                    elif self.game_state == GameState.PAUSED:
+                        if type_msg == Message_types.RESU.value:
+                            self.game_state = GameState.IN_GAME
+                            self.user_disconnected = ""
+                            self.game_console.log(message, False)
+
+                        elif type_msg == Message_types.LBBY.value:
+                            self.game_state = GameState.CONNECTED
+                            self.game_console.delete()
+                            self.game_console.log(message, True)
 
                 elif item[0] == "error":
                     self.connected = False
@@ -491,9 +627,65 @@ class ClientGUI:
         
         self.port_error = ""
 
-        self.connect_to_server()
-        self.send_message(Message_types.LOGI.value, self.login_text)
         self.waiting_for_login_response = True
+        self.connect_error = ""  # Vymazání staré chyby
+
+        # SPUŠTĚNÍ VLÁKNA: Aby volání connect() nezablokovalo Pygame
+        connection_thread = threading.Thread(target=self._threaded_connect_process)
+        connection_thread.daemon = True
+        connection_thread.start()
+
+    def sort_unlo(self, s):
+        # Definice hodnot pro porovnávání
+        values = {
+            "A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, 
+            "8": 8, "9": 9, "X": 10, "J": 11, "Q": 12, "K": 13, "Y": 50
+        }
+
+        # 1. Rozsekání na karty
+        cards = [s[i:i+2] for i in range(0, len(s), 2)]
+        normal = [c for c in cards if c != "YY"]
+        jokers = [c for c in cards if c == "YY"]
+        
+        if not normal:
+            return "".join(jokers)
+
+        # 2. Rozhodnutí o Esu (A)
+        # Pokud máme Eso a zároveň máme v ruce nějakou vysokou kartu (J, Q, K) 
+        # a nemáme tam zároveň nízké karty (2, 3), budeme Eso brát jako 14.
+        has_ace = any(c[0] == 'A' for c in normal)
+        has_high_cards = any(c[0] in "JQK" for c in normal)
+        has_low_cards = any(c[0] in "2345" for c in normal)
+
+        actual_values = values.copy()
+        if has_ace and has_high_cards and not has_low_cards:
+            actual_values["A"] = 14  # Přepneme Eso na vysoké
+            print(f"[LOG] Detekováno vysoké Eso")
+
+        # 3. Seřazení podle aktuálních hodnot
+        normal.sort(key=lambda c: actual_values[c[0]])
+        
+        # 4. Skládání výsledku a vkládání žolíků do mezer
+        result = [normal[0]]
+        current_jokers = len(jokers)
+        
+        for i in range(len(normal) - 1):
+            v1 = actual_values[normal[i][0]]
+            v2 = actual_values[normal[i+1][0]]
+            gap = v2 - v1
+            
+            # Vkládání žolíků tam, kde je v hodnotách mezera
+            while gap > 1 and current_jokers > 0:
+                result.append("YY")
+                current_jokers -= 1
+                gap -= 1
+                
+            result.append(normal[i+1])
+        
+        # Zbytek žolíků na konec
+        result.extend(["YY"] * current_jokers)
+        
+        return "".join(result)
 
     def handle_event(self, event):
         if event.type == pygame.QUIT:
@@ -608,7 +800,7 @@ class ClientGUI:
                     self.send_message(Message_types.STRT.value, "1")
 
         elif self.game_state == GameState.IN_GAME:
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1: # JOKELOGI0005mrdkaJOKERCNT00010JOKEREDY0000
                 mouse_pos = event.pos
 
                 for card in self.card_objects:
@@ -646,6 +838,7 @@ class ClientGUI:
                     else:
                         for i in range(len(selected)):
                             string += selected[i]
+                        string = self.sort_unlo(string)
                         
                         self.send_message(Message_types.UNLO.value, string)
 
@@ -736,6 +929,8 @@ class ClientGUI:
             elif self.game_state == GameState.GAME_DONE:
                 self.page_drawer.draw_game_done_screen(self)
 
+            elif self.game_state == GameState.PAUSED:
+                self.page_drawer.draw_player_disconnected(self)
 
             self.clock.tick(60)
             pygame.display.flip()
@@ -749,9 +944,3 @@ class ClientGUI:
         pygame.quit()
         sys.exit()
 
-def main():
-    gui = ClientGUI()
-    gui.run()
-
-if __name__ == "__main__":
-    main()
