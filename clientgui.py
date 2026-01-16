@@ -593,6 +593,9 @@ class ClientGUI:
                         if type_msg == Message_types.LBBY.value:
                             self.game_state = GameState.CONNECTED
 
+                        elif type_msg == Message_types.PAUS.value:
+                            self.game_state = GameState.CONNECTED
+
                         elif type_msg == Message_types.ESTR.value:
                             print(message)
 
@@ -601,7 +604,7 @@ class ClientGUI:
                             self.discard = False
                             self.game_console.delete()
                             self.game_state = GameState.IN_GAME
-                            self.clicked_plag = False
+                            self.clicked_plag = True
 
                     elif self.game_state == GameState.PAUSED:
                         if type_msg == Message_types.RESU.value:
@@ -935,6 +938,10 @@ class ClientGUI:
                 if self.playagain_button.collidepoint(mouse_pos):
                     if self.clicked_plag:
                         self.send_message(Message_types.PLAG.value, "")
+                    
+                    else:
+                        self.send_message(Message_types.PLAG.value, "1")
+                    
 
                     self.clicked_plag = not self.clicked_plag
                 if self.back_to_lobby.collidepoint(mouse_pos):
