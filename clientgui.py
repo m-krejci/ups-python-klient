@@ -310,10 +310,10 @@ class ClientGUI:
                     self.game_console.log("Spojení obnoveno", False)
 
                 if item[0] == "network_lost":
-                    if self.game_state != GameState.DISCONNECTED:
-                        self.game_console.log("Spojení ztraceno, pokouším se o reconnect", True)
-                        self.connected = False
-                        self.start_reconnect_thread()
+                    self.game_console.log("Spojení ztraceno, pokouším se o reconnect", True)
+                    self.connected = False
+                    self.start_reconnect_thread()
+                    continue
 
                 if item[0] == "message":
                     _, type_msg, message = item
