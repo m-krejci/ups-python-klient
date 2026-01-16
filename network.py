@@ -55,7 +55,7 @@ class Network(threading.Thread):
 
         while self.running:
             try:
-                self.sock.settimeout(5.0)
+                self.sock.settimeout(1.0)
                 type_msg, message = receive_full_message(self.sock)
 
                 # jakákoliv komunikace = kontakt
