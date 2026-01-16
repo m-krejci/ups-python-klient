@@ -135,7 +135,7 @@ class PageDrawer:
             BUTTON_HEIGHT = 30
             
             for i, room in enumerate(state.rooms_list):
-                room_text = f"{room["name"]} {room["capacity"]}"
+                room_text = f"{room['name']} {room['capacity']}"
                 room_surface = self.font.render(room_text, True, (0, 0, 0))
                 room_x = 100
                 room_y = 160 + i * offset_y
@@ -352,7 +352,7 @@ class PageDrawer:
             self.layout_cards(state)
         state.new_cards = False
 
-        text = f"Protiháč: {state.enemy_name if state.enemy_name else "Unknown"}, počet karet: {state.enemy_hand_count}"
+        text = f"Protiháč: {state.enemy_name if state.enemy_name else 'Unknown'}, počet karet: {state.enemy_hand_count}"
         text = state.font_small.render(text, True, (255, 255, 255))
         self.screen.blit(text, (5, 5))
         if not state.enemy_hand_count:

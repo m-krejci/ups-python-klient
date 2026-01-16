@@ -601,6 +601,7 @@ class ClientGUI:
                             self.discard = False
                             self.game_console.delete()
                             self.game_state = GameState.IN_GAME
+                            self.clicked_plag = False
 
                     elif self.game_state == GameState.PAUSED:
                         if type_msg == Message_types.RESU.value:
@@ -799,9 +800,9 @@ class ClientGUI:
 
                 for button in self.room_buttons:
                     if button["rect"].collidepoint(mouse_pos):
-                        print(f"RCNT|{button["room_index"]}")
+                        print(f"RCNT|{button['room_index']}")
                         self.current_room_name = button["room_index"]
-                        self.send_message(Message_types.RCNT.value, f"{button["room_index"]}")
+                        self.send_message(Message_types.RCNT.value, f"{button['room_index']}")
                 
                 if self.lobby_button_obnovit.collidepoint(mouse_pos):
                     self.send_message(Message_types.RLIS.value, "")

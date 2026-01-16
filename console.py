@@ -24,7 +24,7 @@ class Console:
             text (str): Text k zobrazení
             error (bool): Boolean k rozhodnutí barvy
         """
-        self.lines.append([f"[{datetime.now().strftime("%H:%M:%S")}] {str(text)}", error])
+        self.lines.append([f"[{datetime.now().strftime('%H:%M:%S')}] {str(text)}", error])
 
     def draw(self, surface: pygame.Surface):
         """ Vykresluje zprávy na obrazovku
