@@ -99,6 +99,9 @@ class ClientGUI:
         self.clicked_plag = True
         self.user_disconnected = ""
 
+        # RECONNECT
+        self._reconnecting = False
+
         # Buttons
         self.connect_button = pygame.Rect(WINDOW_WIDTH // 2 - (250 // 2), WINDOW_HEIGHT // 2 + 200, 250, 40)    # login screen
         self.lobby_button_obnovit = pygame.Rect(60, 550, 240, 60)                                               # lobby screen
@@ -304,8 +307,6 @@ class ClientGUI:
         while True:
             try:
                 item = self.message_queue.get_nowait()
-                if self.game_state:
-                    print(self.game_state.value)
                 if item[0] == "reconnect":
                     self.game_console.log("Spojení obnoveno", False)
 
@@ -322,6 +323,7 @@ class ClientGUI:
                         if type_msg == Message_types.OKAY.value:
                             self.waiting_for_login_response = False
                             self.game_state = GameState.CONNECTED
+                            self.game_console.log(message, False)
                         
                         elif type_msg == Message_types.RECO.value:
                             self.connected = True
